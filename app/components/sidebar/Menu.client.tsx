@@ -14,6 +14,7 @@ import { useSearchFilter } from '~/lib/hooks/useSearchFilter';
 import { classNames } from '~/utils/classNames';
 import { useStore } from '@nanostores/react';
 import { profileStore } from '~/lib/stores/profile';
+import { authStore } from '~/lib/stores/auth';
 
 const menuVariants = {
   closed: {
@@ -63,6 +64,16 @@ function CurrentDateTime() {
   );
 }
 
+// Helper function to trim the user ID (optional, could be inline)
+function trimUserId(userId: string | undefined | null, start = 6, end = 4): string {
+  if (!userId || userId.length <= start + end + 3) {
+    // +3 for "..."
+    return userId || 'User'; // Fallback
+  }
+
+  return `${userId.slice(0, start)}...${userId.slice(-end)}`;
+}
+
 export const Menu = () => {
   const { duplicateCurrentChat, exportChat } = useChatHistory();
   const menuRef = useRef<HTMLDivElement>(null);
@@ -71,6 +82,7 @@ export const Menu = () => {
   const [dialogContent, setDialogContent] = useState<DialogContent>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const profile = useStore(profileStore);
+  const { isAuthenticated, user } = useStore(authStore);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
 
@@ -340,11 +352,16 @@ export const Menu = () => {
         <div className="h-12 flex items-center justify-between px-4 border-b border-gray-100 dark:border-gray-800/50 bg-gray-50/50 dark:bg-gray-900/50">
           <div className="text-gray-900 dark:text-white font-medium"></div>
           <div className="flex items-center gap-3">
-            <span className="font-medium text-sm text-gray-900 dark:text-white truncate">
-              {profile?.username || 'Guest User'}
+            <span
+              className="font-medium text-sm text-gray-900 dark:text-white truncate"
+              title={isAuthenticated && user ? user.user : profile?.username || 'Guest User'}
+            >
+              {isAuthenticated && user ? trimUserId(user.user) : profile?.username || 'Guest User'}
             </span>
             <div className="flex items-center justify-center w-[32px] h-[32px] overflow-hidden bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-500 rounded-full shrink-0">
-              {profile?.avatar ? (
+              {isAuthenticated ? (
+                <div className="i-ph:lock-fill text-lg text-green-500" />
+              ) : profile?.avatar ? (
                 <img
                   src={profile.avatar}
                   alt={profile?.username || 'User'}

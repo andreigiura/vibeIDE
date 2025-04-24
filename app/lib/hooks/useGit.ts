@@ -25,7 +25,7 @@ const lookupSavedPassword = (url: string) => {
 
 const saveGitAuth = (url: string, auth: GitAuth) => {
   const domain = url.split('/')[2];
-  Cookies.set(`git:${domain}`, JSON.stringify(auth));
+  Cookies.set(`git:${domain}`, JSON.stringify(auth), { sameSite: 'None', secure: true });
 };
 
 export function useGit() {

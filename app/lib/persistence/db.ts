@@ -1,11 +1,14 @@
 import type { Message } from 'ai';
 import { createScopedLogger } from '~/utils/logger';
 import type { ChatHistoryItem } from './useChatHistory';
-
+import { customAlphabet } from 'nanoid';
+import { nolookalikes } from 'nanoid-dictionary';
 export interface IChatMetadata {
   gitUrl: string;
   gitBranch?: string;
   netlifySiteId?: string;
+  appName?: string;
+  model?: string;
 }
 
 const logger = createScopedLogger('ChatHistory');
@@ -122,34 +125,33 @@ export async function deleteById(db: IDBDatabase, id: string): Promise<void> {
   });
 }
 
-export async function getNextId(db: IDBDatabase): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction('chats', 'readonly');
-    const store = transaction.objectStore('chats');
-    const request = store.getAllKeys();
-
-    request.onsuccess = () => {
-      const highestId = request.result.reduce((cur, acc) => Math.max(+cur, +acc), 0);
-      resolve(String(+highestId + 1));
-    };
-
-    request.onerror = () => reject(request.error);
-  });
+/**
+ * Generates a new unique short ID for a chat.
+ * @returns A promise that resolves to a unique nanoid string (length 10).
+ */
+export async function getNextId(): Promise<string> {
+  return customAlphabet(nolookalikes, 10)();
 }
 
-export async function getUrlId(db: IDBDatabase, id: string): Promise<string> {
+/**
+ * Generates a unique URL-friendly ID, handling potential collisions.
+ * @param db The IndexedDB database instance.
+ * @param baseId The desired base ID (usually the chat's primary ID).
+ * @returns A promise that resolves to a unique URL ID string.
+ */
+export async function getUrlId(db: IDBDatabase, baseId: string): Promise<string> {
   const idList = await getUrlIds(db);
 
-  if (!idList.includes(id)) {
-    return id;
+  if (!idList.includes(baseId)) {
+    return baseId;
   } else {
     let i = 2;
 
-    while (idList.includes(`${id}-${i}`)) {
+    while (idList.includes(`${baseId}-${i}`)) {
       i++;
     }
 
-    return `${id}-${i}`;
+    return `${baseId}-${i}`;
   }
 }
 
@@ -214,7 +216,7 @@ export async function createChatFromMessages(
   messages: Message[],
   metadata?: IChatMetadata,
 ): Promise<string> {
-  const newId = await getNextId(db);
+  const newId = await getNextId();
   const newUrlId = await getUrlId(db, newId); // Get a new urlId for the duplicated chat
 
   await setMessages(

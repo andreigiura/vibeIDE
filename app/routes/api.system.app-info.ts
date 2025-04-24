@@ -1,6 +1,12 @@
 import type { ActionFunctionArgs, LoaderFunction } from '@remix-run/cloudflare';
 import { json } from '@remix-run/cloudflare';
 
+/*
+ * import * as os from 'os'; // Commented out based on linter feedback
+ * import * as path from 'path'; // Commented out based on linter feedback
+ */
+import { requireUserId } from '~/services/session.server';
+
 // These are injected by Vite at build time
 declare const __APP_VERSION: string;
 declare const __PKG_NAME: string;
@@ -64,7 +70,9 @@ const getAppResponse = () => {
   };
 };
 
-export const loader: LoaderFunction = async ({ request: _request }) => {
+export const loader: LoaderFunction = async ({ request }) => {
+  await requireUserId(request);
+
   try {
     return json(getAppResponse());
   } catch (error) {
@@ -99,7 +107,9 @@ export const loader: LoaderFunction = async ({ request: _request }) => {
   }
 };
 
-export const action = async ({ request: _request }: ActionFunctionArgs) => {
+export const action = async ({ request }: ActionFunctionArgs) => {
+  await requireUserId(request);
+
   try {
     return json(getAppResponse());
   } catch (error) {

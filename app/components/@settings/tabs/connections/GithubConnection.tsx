@@ -151,9 +151,12 @@ export default function GitHubConnection() {
       }));
 
       // Set cookies for client-side access
-      Cookies.set('githubUsername', user.login);
-      Cookies.set('githubToken', token);
-      Cookies.set('git:github.com', JSON.stringify({ username: token, password: 'x-oauth-basic' }));
+      Cookies.set('githubUsername', user.login, { sameSite: 'None', secure: true });
+      Cookies.set('githubToken', token, { sameSite: 'None', secure: true });
+      Cookies.set('git:github.com', JSON.stringify({ username: token, password: 'x-oauth-basic' }), {
+        sameSite: 'None',
+        secure: true,
+      });
 
       // Store connection details in localStorage
       localStorage.setItem(
@@ -426,12 +429,15 @@ export default function GitHubConnection() {
     const data = connection.user;
 
     if (token) {
-      Cookies.set('githubToken', token);
-      Cookies.set('git:github.com', JSON.stringify({ username: token, password: 'x-oauth-basic' }));
+      Cookies.set('githubToken', token, { sameSite: 'None', secure: true });
+      Cookies.set('git:github.com', JSON.stringify({ username: token, password: 'x-oauth-basic' }), {
+        sameSite: 'None',
+        secure: true,
+      });
     }
 
     if (data) {
-      Cookies.set('githubUsername', data.login);
+      Cookies.set('githubUsername', data.login, { sameSite: 'None', secure: true });
     }
   }, [connection]);
 

@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useStore } from '@nanostores/react';
 import { classNames } from '~/utils/classNames';
 import { profileStore } from '~/lib/stores/profile';
+import { authStore } from '~/lib/stores/auth';
 import type { TabType, Profile } from './types';
 
 const BetaLabel = () => (
@@ -11,12 +12,26 @@ const BetaLabel = () => (
   </span>
 );
 
+// Helper function to trim the user ID (reuse or define here)
+function trimUserId(userId: string | undefined | null, start = 6, end = 4): string {
+  if (!userId || userId.length <= start + end + 3) {
+    return userId || 'User';
+  }
+
+  return `${userId.slice(0, start)}...${userId.slice(-end)}`;
+}
+
 interface AvatarDropdownProps {
   onSelectTab: (tab: TabType) => void;
 }
 
 export const AvatarDropdown = ({ onSelectTab }: AvatarDropdownProps) => {
   const profile = useStore(profileStore) as Profile;
+  const { isAuthenticated, user } = useStore(authStore);
+
+  // Determine the display name
+  const displayName = isAuthenticated && user ? trimUserId(user.user) : profile?.username || 'Guest User';
+  const hoverTitle = isAuthenticated && user ? user.user : profile?.username || 'Guest User';
 
   return (
     <DropdownMenu.Root>
@@ -25,8 +40,13 @@ export const AvatarDropdown = ({ onSelectTab }: AvatarDropdownProps) => {
           className="w-10 h-10 rounded-full bg-transparent flex items-center justify-center focus:outline-none"
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
+          title={hoverTitle}
         >
-          {profile?.avatar ? (
+          {isAuthenticated ? (
+            <div className="w-full h-full rounded-full flex items-center justify-center bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400">
+              <div className="i-ph:lock-fill w-6 h-6" />
+            </div>
+          ) : profile?.avatar ? (
             <img
               src={profile.avatar}
               alt={profile?.username || 'Profile'}
@@ -62,7 +82,11 @@ export const AvatarDropdown = ({ onSelectTab }: AvatarDropdownProps) => {
             )}
           >
             <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 bg-white dark:bg-gray-800 shadow-sm">
-              {profile?.avatar ? (
+              {isAuthenticated ? (
+                <div className="w-full h-full flex items-center justify-center bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400">
+                  <div className="i-ph:lock-fill w-6 h-6" />
+                </div>
+              ) : profile?.avatar ? (
                 <img
                   src={profile.avatar}
                   alt={profile?.username || 'Profile'}
@@ -77,10 +101,12 @@ export const AvatarDropdown = ({ onSelectTab }: AvatarDropdownProps) => {
               )}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="font-medium text-sm text-gray-900 dark:text-white truncate">
-                {profile?.username || 'Guest User'}
+              <div className="font-medium text-sm text-gray-900 dark:text-white truncate" title={hoverTitle}>
+                {displayName}
               </div>
-              {profile?.bio && <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{profile.bio}</div>}
+              {!isAuthenticated && profile?.bio && (
+                <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{profile.bio}</div>
+              )}
             </div>
           </div>
 

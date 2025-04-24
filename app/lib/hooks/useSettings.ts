@@ -117,7 +117,7 @@ export function useSettings(): UseSettingsReturn {
   const enableDebugMode = useCallback((enabled: boolean) => {
     isDebugMode.set(enabled);
     logStore.logSystem(`Debug mode ${enabled ? 'enabled' : 'disabled'}`);
-    Cookies.set('isDebugEnabled', String(enabled));
+    Cookies.set('isDebugEnabled', String(enabled), { sameSite: 'None', secure: true });
   }, []);
 
   const setEventLogs = useCallback((enabled: boolean) => {
@@ -179,7 +179,7 @@ export function useSettings(): UseSettingsReturn {
     Object.keys(providers).forEach((provider) => {
       providerSetting[provider] = providers[provider].settings;
     });
-    Cookies.set('providers', JSON.stringify(providerSetting));
+    Cookies.set('providers', JSON.stringify(providerSetting), { sameSite: 'None', secure: true });
   }, [providers]);
 
   return {

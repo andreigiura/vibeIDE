@@ -1,8 +1,13 @@
 import type { LoaderFunction } from '@remix-run/cloudflare';
+
+// import { json } from '@remix-run/cloudflare'; // Removed unused import
+import { requireUserId } from '~/services/session.server';
 import { LLMManager } from '~/lib/modules/llm/manager';
 import { getApiKeysFromCookie } from '~/lib/api/cookies';
 
 export const loader: LoaderFunction = async ({ context, request }) => {
+  await requireUserId(request);
+
   const url = new URL(request.url);
   const provider = url.searchParams.get('provider');
 

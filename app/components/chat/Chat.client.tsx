@@ -9,7 +9,7 @@ import { useAnimate } from 'framer-motion';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { cssTransition, toast, ToastContainer } from 'react-toastify';
 import { useMessageParser, usePromptEnhancer, useShortcuts, useSnapScroll } from '~/lib/hooks';
-import { description, useChatHistory } from '~/lib/persistence';
+import { description, useChatHistory, chatMetadata, type IChatMetadata } from '~/lib/persistence';
 import { chatStore } from '~/lib/stores/chat';
 import { workbenchStore } from '~/lib/stores/workbench';
 import { DEFAULT_MODEL, DEFAULT_PROVIDER, PROMPT_COOKIE_KEY, PROVIDER_LIST } from '~/utils/constants';
@@ -27,6 +27,8 @@ import { logStore } from '~/lib/stores/logs';
 import { streamingState } from '~/lib/stores/streaming';
 import { filesToArtifacts } from '~/utils/fileUtils';
 import { supabaseConnection } from '~/lib/stores/supabase';
+// import { ChatActionRunner } from '~/lib/actions/ChatActionRunner'; // Commented out import
+import { SupabaseChatAlert } from '~/components/chat/SupabaseAlert';
 
 const toastAnimation = cssTransition({
   enter: 'animated fadeInRight',
@@ -35,11 +37,23 @@ const toastAnimation = cssTransition({
 
 const logger = createScopedLogger('Chat');
 
+export interface ChatProps {
+  description?: string;
+  initialMessages: Message[];
+  storeMessageHistory: (messages: Message[]) => Promise<void>;
+  importChat: (description: string, messages: Message[]) => Promise<void>;
+  exportChat: () => Promise<void>;
+  updateChatMestaData: (metadata: IChatMetadata) => Promise<void>;
+  metadata?: IChatMetadata;
+}
+
 export function Chat() {
   renderLogger.trace('Chat');
 
-  const { ready, initialMessages, storeMessageHistory, importChat, exportChat } = useChatHistory();
+  const { ready, initialMessages, storeMessageHistory, importChat, exportChat, updateChatMestaData } = useChatHistory();
   const title = useStore(description);
+  const currentMetadata = useStore(chatMetadata);
+
   useEffect(() => {
     workbenchStore.setReloadedMessages(initialMessages.map((m) => m.id));
   }, [initialMessages]);
@@ -53,6 +67,8 @@ export function Chat() {
           exportChat={exportChat}
           storeMessageHistory={storeMessageHistory}
           importChat={importChat}
+          updateChatMestaData={updateChatMestaData}
+          metadata={currentMetadata}
         />
       )}
       <ToastContainer
@@ -105,16 +121,16 @@ const processSampledMessages = createSampler(
   50,
 );
 
-interface ChatProps {
-  initialMessages: Message[];
-  storeMessageHistory: (messages: Message[]) => Promise<void>;
-  importChat: (description: string, messages: Message[]) => Promise<void>;
-  exportChat: () => void;
-  description?: string;
-}
-
 export const ChatImpl = memo(
-  ({ description, initialMessages, storeMessageHistory, importChat, exportChat }: ChatProps) => {
+  ({
+    description,
+    initialMessages,
+    storeMessageHistory,
+    importChat,
+    exportChat,
+    updateChatMestaData,
+    metadata,
+  }: ChatProps) => {
     useShortcuts();
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -126,7 +142,7 @@ export const ChatImpl = memo(
     const files = useStore(workbenchStore.files);
     const actionAlert = useStore(workbenchStore.alert);
     const deployAlert = useStore(workbenchStore.deployAlert);
-    const supabaseConn = useStore(supabaseConnection); // Add this line to get Supabase connection
+    const supabaseConn = useStore(supabaseConnection);
     const selectedProject = supabaseConn.stats?.projects?.find(
       (project) => project.id === supabaseConn.selectedProjectId,
     );
@@ -478,7 +494,7 @@ export const ChatImpl = memo(
     const debouncedCachePrompt = useCallback(
       debounce((event: React.ChangeEvent<HTMLTextAreaElement>) => {
         const trimmedValue = event.target.value.trim();
-        Cookies.set(PROMPT_COOKIE_KEY, trimmedValue, { expires: 30 });
+        Cookies.set(PROMPT_COOKIE_KEY, trimmedValue, { expires: 30, sameSite: 'None', secure: true });
       }, 1000),
       [],
     );
@@ -495,13 +511,41 @@ export const ChatImpl = memo(
 
     const handleModelChange = (newModel: string) => {
       setModel(newModel);
-      Cookies.set('selectedModel', newModel, { expires: 30 });
+      Cookies.set('selectedModel', newModel, { expires: 30, sameSite: 'None', secure: true });
     };
 
     const handleProviderChange = (newProvider: ProviderInfo) => {
       setProvider(newProvider);
-      Cookies.set('selectedProvider', newProvider.name, { expires: 30 });
+      Cookies.set('selectedProvider', newProvider.name, { expires: 30, sameSite: 'None', secure: true });
     };
+
+    // const actionRunner = new ChatActionRunner(append, reload); // Commented out instantiation
+
+    useEffect(() => {
+      const currentAppName = description;
+      const currentModel = model;
+
+      if (!updateChatMestaData) {
+        return;
+      }
+
+      const needsUpdate = metadata?.appName !== currentAppName || metadata?.model !== currentModel;
+
+      if (needsUpdate && (currentAppName || currentModel)) {
+        console.log('Updating metadata:', { appName: currentAppName, model: currentModel });
+
+        const existingGitUrl = metadata?.gitUrl || '';
+        updateChatMestaData({
+          ...(metadata || { gitUrl: '' }),
+          gitUrl: existingGitUrl,
+          ...(currentAppName && { appName: currentAppName }),
+          ...(currentModel && { model: currentModel }),
+        }).catch((error) => {
+          console.error('Failed to update chat metadata:', error);
+          toast.error('Failed to save app metadata');
+        });
+      }
+    }, [model, description, metadata, updateChatMestaData]);
 
     return (
       <BaseChat
@@ -565,6 +609,7 @@ export const ChatImpl = memo(
         deployAlert={deployAlert}
         clearDeployAlert={() => workbenchStore.clearDeployAlert()}
         data={chatData}
+        // actionRunner={actionRunner} // Commented out prop usage
       />
     );
   },

@@ -1,7 +1,11 @@
-import { json, type ActionFunction } from '@remix-run/cloudflare';
+import type { ActionFunction } from '@remix-run/cloudflare';
+import { json } from '@remix-run/cloudflare';
 import type { SupabaseProject } from '~/types/supabase';
+import { requireUserId } from '~/services/session.server';
 
 export const action: ActionFunction = async ({ request }) => {
+  await requireUserId(request);
+
   if (request.method !== 'POST') {
     return json({ error: 'Method not allowed' }, { status: 405 });
   }

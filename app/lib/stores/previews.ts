@@ -20,52 +20,58 @@ const PREVIEW_CHANNEL = 'preview-updates';
 export class PreviewsStore {
   #availablePreviews = new Map<number, PreviewInfo>();
   #webcontainer: Promise<WebContainer>;
-  #broadcastChannel: BroadcastChannel;
+  #broadcastChannel: BroadcastChannel | null = null;
   #lastUpdate = new Map<string, number>();
   #watchedFiles = new Set<string>();
   #refreshTimeouts = new Map<string, NodeJS.Timeout>();
   #REFRESH_DELAY = 300;
-  #storageChannel: BroadcastChannel;
+  #storageChannel: BroadcastChannel | null = null;
 
   previews = atom<PreviewInfo[]>([]);
 
   constructor(webcontainerPromise: Promise<WebContainer>) {
     this.#webcontainer = webcontainerPromise;
-    this.#broadcastChannel = new BroadcastChannel(PREVIEW_CHANNEL);
-    this.#storageChannel = new BroadcastChannel('storage-sync-channel');
 
-    // Listen for preview updates from other tabs
-    this.#broadcastChannel.onmessage = (event) => {
-      const { type, previewId } = event.data;
+    // Only initialize BroadcastChannel in a browser environment
+    if (typeof window !== 'undefined' && typeof BroadcastChannel !== 'undefined') {
+      this.#broadcastChannel = new BroadcastChannel(PREVIEW_CHANNEL);
+      this.#storageChannel = new BroadcastChannel('storage-sync-channel');
 
-      if (type === 'file-change') {
-        const timestamp = event.data.timestamp;
-        const lastUpdate = this.#lastUpdate.get(previewId) || 0;
+      // Listen for preview updates from other tabs
+      this.#broadcastChannel.onmessage = (event) => {
+        const { type, previewId } = event.data;
 
-        if (timestamp > lastUpdate) {
-          this.#lastUpdate.set(previewId, timestamp);
-          this.refreshPreview(previewId);
+        if (type === 'file-change') {
+          const timestamp = event.data.timestamp;
+          const lastUpdate = this.#lastUpdate.get(previewId) || 0;
+
+          if (timestamp > lastUpdate) {
+            this.#lastUpdate.set(previewId, timestamp);
+            this.refreshPreview(previewId);
+          }
         }
-      }
-    };
+      };
 
-    // Listen for storage sync messages
-    this.#storageChannel.onmessage = (event) => {
-      const { storage, source } = event.data;
+      // Listen for storage sync messages
+      this.#storageChannel.onmessage = (event) => {
+        const { storage, source } = event.data;
 
-      if (storage && source !== this._getTabId()) {
-        this._syncStorage(storage);
-      }
-    };
+        if (storage && source !== this._getTabId()) {
+          this._syncStorage(storage);
+        }
+      };
 
-    // Override localStorage setItem to catch all changes
-    if (typeof window !== 'undefined') {
+      // Override localStorage setItem to catch all changes
       const originalSetItem = localStorage.setItem;
 
       localStorage.setItem = (...args) => {
         originalSetItem.apply(localStorage, args);
         this._broadcastStorageSync();
       };
+    } else {
+      console.warn(
+        '[PreviewsStore] BroadcastChannel not available in this environment. Preview sync might be limited.',
+      );
     }
 
     this.#init();
@@ -119,7 +125,8 @@ export class PreviewsStore {
 
   // Broadcast storage state to other tabs
   private _broadcastStorageSync() {
-    if (typeof window !== 'undefined') {
+    // Check if BroadcastChannel is available and initialized
+    if (typeof window !== 'undefined' && this.#storageChannel) {
       const storage: Record<string, string> = {};
 
       for (let i = 0; i < localStorage.length; i++) {
@@ -228,33 +235,23 @@ export class PreviewsStore {
 
   // Broadcast state change to all tabs
   broadcastStateChange(previewId: string) {
-    const timestamp = Date.now();
-    this.#lastUpdate.set(previewId, timestamp);
+    // Check if BroadcastChannel is available and initialized
+    if (this.#broadcastChannel) {
+      const timestamp = Date.now();
+      this.#lastUpdate.set(previewId, timestamp);
 
-    this.#broadcastChannel.postMessage({
-      type: 'state-change',
-      previewId,
-      timestamp,
-    });
+      this.#broadcastChannel.postMessage({
+        type: 'state-change',
+        previewId,
+        timestamp,
+      });
+    }
   }
 
   // Broadcast file change to all tabs
   broadcastFileChange(previewId: string) {
-    const timestamp = Date.now();
-    this.#lastUpdate.set(previewId, timestamp);
-
-    this.#broadcastChannel.postMessage({
-      type: 'file-change',
-      previewId,
-      timestamp,
-    });
-  }
-
-  // Broadcast update to all tabs
-  broadcastUpdate(url: string) {
-    const previewId = this.getPreviewId(url);
-
-    if (previewId) {
+    // Check if BroadcastChannel is available and initialized
+    if (this.#broadcastChannel) {
       const timestamp = Date.now();
       this.#lastUpdate.set(previewId, timestamp);
 
@@ -263,6 +260,25 @@ export class PreviewsStore {
         previewId,
         timestamp,
       });
+    }
+  }
+
+  // Broadcast update to all tabs
+  broadcastUpdate(url: string) {
+    // Check if BroadcastChannel is available and initialized
+    if (this.#broadcastChannel) {
+      const previewId = this.getPreviewId(url);
+
+      if (previewId) {
+        const timestamp = Date.now();
+        this.#lastUpdate.set(previewId, timestamp);
+
+        this.#broadcastChannel.postMessage({
+          type: 'file-change',
+          previewId,
+          timestamp,
+        });
+      }
     }
   }
 
@@ -301,12 +317,10 @@ export class PreviewsStore {
 let previewsStore: PreviewsStore | null = null;
 
 export function usePreviewStore() {
-  if (!previewsStore) {
-    /*
-     * Initialize with a Promise that resolves to WebContainer
-     * This should match how you're initializing WebContainer elsewhere
-     */
-    previewsStore = new PreviewsStore(Promise.resolve({} as WebContainer));
+  // Ensure PreviewsStore is only instantiated client-side
+  if (!previewsStore && typeof window !== 'undefined') {
+    const webcontainerModule = import('~/lib/webcontainer');
+    previewsStore = new PreviewsStore(webcontainerModule.then((m) => m.webcontainer));
   }
 
   return previewsStore;

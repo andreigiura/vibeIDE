@@ -14,7 +14,10 @@ export function NetlifyDeploymentLink() {
     }
   }, [connection.token, currentChatId]);
 
-  const deployedSite = connection.stats?.sites?.find((site) => site.name.includes(`bolt-diy-${currentChatId}`));
+  const deployedSite = connection.stats?.sites?.find((site) =>
+    site.name.includes(`vibe-${currentChatId?.toLocaleLowerCase()}`),
+  );
+  console.log('deployed site is: ', deployedSite, connection.stats?.sites, `vibe-${currentChatId}`);
 
   if (!deployedSite) {
     return null;

@@ -11,8 +11,13 @@ import type { ContextAnnotation, ProgressAnnotation } from '~/types/context';
 import { WORK_DIR } from '~/utils/constants';
 import { createSummary } from '~/lib/.server/llm/create-summary';
 import { extractPropertiesFromMessage } from '~/lib/.server/llm/utils';
+import { requireUserId } from '~/services/session.server';
 
 export async function action(args: ActionFunctionArgs) {
+  /*
+   * Optional: Add guard here if you want to protect before even calling chatAction
+   * await requireUserId(args.request);
+   */
   return chatAction(args);
 }
 
@@ -37,6 +42,9 @@ function parseCookies(cookieHeader: string): Record<string, string> {
 }
 
 async function chatAction({ context, request }: ActionFunctionArgs) {
+  // Add the guard at the beginning of the main logic
+  await requireUserId(request);
+
   const { messages, files, promptId, contextOptimization, supabase } = await request.json<{
     messages: Messages;
     files: any;

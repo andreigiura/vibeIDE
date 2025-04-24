@@ -3,7 +3,7 @@
  */
 
 import type { Message } from 'ai';
-import type { IChatMetadata } from './db'; // Import IChatMetadata
+import { createChatFromMessages, type IChatMetadata } from './db'; // Import IChatMetadata
 
 export interface ChatMessage {
   id: string;
@@ -137,4 +137,82 @@ export async function deleteAllChats(db: IDBDatabase): Promise<void> {
       reject(request.error);
     };
   });
+}
+
+/**
+ * Imports a chat fetched based on a remixId (currently uses hardcoded data).
+ * @param db The IndexedDB database instance
+ * @param remixId The ID used to fetch the chat (placeholder for now)
+ * @returns A promise that resolves to the imported chat object or null on error
+ */
+export async function importChatFromRemixId(db: IDBDatabase, remixId: string): Promise<string> {
+  console.log(`importChatFromRemixId: Importing chat for remixId: ${remixId}`);
+
+  const apiUrl = `https://tools.multiversx.com/vibe-passport/applications/${remixId}/chat`;
+
+  try {
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      console.error(
+        `importChatFromRemixId: Failed to fetch chat from API. Status: ${response.status} ${response.statusText}`,
+      );
+
+      // Attempt to read error body if available
+      try {
+        const errorBody = await response.json();
+        console.error('API Error Body:', errorBody);
+      } catch {
+        // Ignore error if parsing error body fails
+        console.error('Could not parse error body from failed API response.');
+      }
+
+      return '';
+    }
+
+    const fetchedData = (await response.json()) as any; // Use any for now, refine if schema is known
+
+    // Validate fetched data structure (basic check)
+    if (!fetchedData || typeof fetchedData !== 'object' || !Array.isArray(fetchedData.messages)) {
+      console.error('importChatFromRemixId: Invalid data structure received from API', fetchedData);
+      return '';
+    }
+
+    // Map fetched data to local Chat structure
+    const newChat: Chat = {
+      // Generate unique local IDs, potentially incorporating remixId to avoid collisions
+      id: `imported_${remixId}_${Date.now()}`,
+      urlId: `imported_${remixId}_${Date.now() + 1}`, // Ensure urlId is unique too
+      description: fetchedData.description || `Imported Chat (${remixId})`, // Use fetched description or default
+      timestamp: fetchedData.timestamp || new Date().toISOString(), // Use fetched timestamp or current time
+      // Map messages, ensuring they fit the `Message` type from `ai`
+      messages: fetchedData.messages.map((msg: any) => ({
+        id: msg.id || `msg_${Date.now()}_${Math.random()}`, // Ensure each message has an ID
+        role: msg.role, // Assume role matches ('user', 'assistant', etc.)
+        content: msg.content,
+        createdAt: msg.createdAt ? new Date(msg.createdAt) : new Date(), // Ensure createdAt is a Date object
+        // Add other fields if necessary and available from API
+      })),
+
+      // metadata: fetchedData.metadata, // Add if metadata is provided by API
+    };
+
+    const urlId = createChatFromMessages(
+      db,
+      `${newChat.description} (remix)` || 'New APP (remix)',
+      newChat.messages,
+      newChat.metadata,
+    );
+    console.log(`importChatFromRemixId: Successfully fetched and saved chat`);
+
+    return urlId;
+  } catch (error) {
+    console.error(`importChatFromRemixId: Error fetching or processing chat for remixId ${remixId}:`, error);
+    return '';
+  }
 }

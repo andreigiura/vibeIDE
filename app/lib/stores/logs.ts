@@ -98,7 +98,7 @@ class LogStore {
 
   private _saveLogs() {
     const currentLogs = this._logs.get();
-    Cookies.set('eventLogs', JSON.stringify(currentLogs));
+    Cookies.set('eventLogs', JSON.stringify(currentLogs), { sameSite: 'None', secure: true });
   }
 
   private _saveReadLogs() {

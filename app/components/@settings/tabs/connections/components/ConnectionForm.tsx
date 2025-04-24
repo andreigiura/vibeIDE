@@ -32,7 +32,7 @@ export function ConnectionForm({ authState, setAuthState, onSave, onDisconnect }
       }));
 
       // Ensure the token is also saved with the correct key for API requests
-      Cookies.set('githubToken', savedToken);
+      Cookies.set('githubToken', savedToken, { sameSite: 'None', secure: true });
     }
   }, []);
 

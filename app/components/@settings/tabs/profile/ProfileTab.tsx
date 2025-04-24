@@ -62,8 +62,14 @@ export default function ProfileTab() {
   return (
     <div className="max-w-2xl mx-auto">
       <div className="space-y-6">
+        {/* Authentication Section Removed */}
+
+        {/* Separator is no longer needed if Auth section is removed */}
+        {/* <Separator className="my-6" /> */}
+
         {/* Personal Information Section */}
         <div>
+          <h3 className="text-lg font-medium leading-6 text-gray-900 dark:text-gray-100 mb-4">Personal Information</h3>
           {/* Avatar Upload */}
           <div className="flex items-start gap-6 mb-8">
             <div

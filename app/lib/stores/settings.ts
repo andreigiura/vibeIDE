@@ -267,7 +267,8 @@ export const updateTabConfiguration = (config: TabVisibilityConfig) => {
   Cookies.set('tabConfiguration', JSON.stringify(newConfig), {
     expires: 365, // Set cookie to expire in 1 year
     path: '/',
-    sameSite: 'strict',
+    sameSite: 'None',
+    secure: true,
   });
 };
 

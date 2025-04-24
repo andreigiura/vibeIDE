@@ -64,7 +64,7 @@ export default function ConnectionsTab() {
       {showDiagnostics && <ConnectionDiagnostics />}
 
       {/* Environment Variables Info - Collapsible */}
-      <motion.div
+      {/* <motion.div
         className="bg-bolt-elements-background dark:bg-bolt-elements-background rounded-lg border border-bolt-elements-borderColor dark:border-bolt-elements-borderColor"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -147,7 +147,7 @@ export default function ConnectionsTab() {
             </div>
           )}
         </div>
-      </motion.div>
+      </motion.div> */}
 
       <div className="grid grid-cols-1 gap-6">
         <Suspense fallback={<LoadingFallback />}>

@@ -1,5 +1,8 @@
 import { json, type LoaderFunction, type LoaderFunctionArgs } from '@remix-run/cloudflare';
 
+// import type { AppContext } from '~/types/appContext'; // Commented out problematic import
+import { requireUserId } from '~/services/session.server';
+
 interface GitInfo {
   local: {
     commitHash: string;
@@ -21,13 +24,6 @@ interface GitInfo {
   };
   isForked?: boolean;
   timestamp?: string;
-}
-
-// Define context type
-interface AppContext {
-  env?: {
-    GITHUB_ACCESS_TOKEN?: string;
-  };
 }
 
 interface GitHubRepo {
@@ -61,7 +57,9 @@ declare const __GIT_REPO_NAME: string;
  * declare const __GIT_REPO_URL: string;
  */
 
-export const loader: LoaderFunction = async ({ request, context }: LoaderFunctionArgs & { context: AppContext }) => {
+export const loader: LoaderFunction = async ({ request /*, context */ }: LoaderFunctionArgs) => {
+  await requireUserId(request);
+
   console.log('Git info API called with URL:', request.url);
 
   // Handle CORS preflight requests
@@ -82,7 +80,7 @@ export const loader: LoaderFunction = async ({ request, context }: LoaderFunctio
 
   if (action === 'getUser' || action === 'getRepos' || action === 'getOrgs' || action === 'getActivity') {
     // Use server-side token instead of client-side token
-    const serverGithubToken = process.env.GITHUB_ACCESS_TOKEN || context.env?.GITHUB_ACCESS_TOKEN;
+    const serverGithubToken = process.env.GITHUB_ACCESS_TOKEN || /* context.env?.GITHUB_ACCESS_TOKEN */ null;
     const cookieToken = request.headers
       .get('Cookie')
       ?.split(';')

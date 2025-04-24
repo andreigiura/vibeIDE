@@ -1,6 +1,12 @@
 import type { ActionFunctionArgs, LoaderFunction } from '@remix-run/cloudflare';
 import { json } from '@remix-run/cloudflare';
 
+/*
+ * import * as os from 'os'; // Commented out based on linter feedback
+ * import * as v8 from 'v8'; // Commented out based on linter feedback
+ */
+import { requireUserId } from '~/services/session.server';
+
 // Only import child_process if we're not in a Cloudflare environment
 let execSync: any;
 
@@ -241,39 +247,31 @@ const getSystemMemoryInfo = (): SystemMemoryInfo => {
   }
 };
 
-export const loader: LoaderFunction = async ({ request: _request }) => {
+export const loader: LoaderFunction = async ({ request }) => {
+  await requireUserId(request);
+
   try {
-    return json(getSystemMemoryInfo());
+    const memoryInfo = getSystemMemoryInfo();
+    return json(memoryInfo);
   } catch (error) {
-    console.error('Failed to get system memory info:', error);
+    console.error('Error getting memory info:', error);
     return json(
-      {
-        total: 0,
-        free: 0,
-        used: 0,
-        percentage: 0,
-        timestamp: new Date().toISOString(),
-        error: error instanceof Error ? error.message : 'Unknown error',
-      },
+      { error: error instanceof Error ? error.message : 'Failed to get memory information' },
       { status: 500 },
     );
   }
 };
 
-export const action = async ({ request: _request }: ActionFunctionArgs) => {
+export const action = async ({ request }: ActionFunctionArgs) => {
+  await requireUserId(request);
+
   try {
-    return json(getSystemMemoryInfo());
+    const memoryInfo = getSystemMemoryInfo();
+    return json(memoryInfo);
   } catch (error) {
-    console.error('Failed to get system memory info:', error);
+    console.error('Error getting memory info in action:', error);
     return json(
-      {
-        total: 0,
-        free: 0,
-        used: 0,
-        percentage: 0,
-        timestamp: new Date().toISOString(),
-        error: error instanceof Error ? error.message : 'Unknown error',
-      },
+      { error: error instanceof Error ? error.message : 'Failed to get memory information' },
       { status: 500 },
     );
   }

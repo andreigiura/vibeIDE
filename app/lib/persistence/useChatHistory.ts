@@ -20,6 +20,7 @@ import type { Snapshot } from './types';
 import { webcontainer } from '~/lib/webcontainer';
 import { createCommandsMessage, detectProjectCommands } from '~/utils/projectCommands';
 import type { ContextAnnotation } from '~/types/context';
+import { netlifyConnection } from '~/lib/stores/netlify';
 
 export interface ChatHistoryItem {
   id: string;
@@ -255,9 +256,68 @@ ${value.content}
     // workbenchStore.files.setKey(snapshot?.files)
   }, []);
 
+  const getNetlifyUrl = useCallback((): string | undefined => {
+    const currentChatId = chatId.get();
+
+    if (!currentChatId) {
+      return undefined;
+    }
+
+    const deployedSite = netlifyConnection
+      .get()
+      .stats?.sites?.find((site) => site.name.includes(`vibe-${currentChatId?.toLocaleLowerCase()}`));
+    console.log('deployed site is3: ', deployedSite, `vibe-${currentChatId}`);
+
+    return deployedSite?.url || deployedSite?.ssl_url;
+  }, []);
+
+  const prepareExportChat = async (id = urlId): Promise<string | undefined> => {
+    if (!db || !id) {
+      return undefined;
+    }
+
+    const chat = await getMessages(db, id);
+    const chatData = {
+      messages: chat.messages,
+      description: chat.description,
+      exportDate: new Date().toISOString(),
+    };
+
+    return JSON.stringify(chatData, null, 2);
+  };
+
+  const exportChat = async (id = urlId) => {
+    if (!db || !id) {
+      return;
+    }
+
+    const chatJson = await prepareExportChat(id);
+
+    if (!chatJson) {
+      return;
+    }
+
+    const blob = new Blob([chatJson], { type: 'application/json' });
+
+    if (!blob) {
+      return;
+    }
+
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `chat-${new Date().toISOString()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return {
     ready: !mixedId || ready,
     initialMessages,
+    getNetlifyUrl,
     updateChatMestaData: async (metadata: IChatMetadata) => {
       const id = chatId.get();
 
@@ -362,28 +422,8 @@ ${value.content}
         }
       }
     },
-    exportChat: async (id = urlId) => {
-      if (!db || !id) {
-        return;
-      }
-
-      const chat = await getMessages(db, id);
-      const chatData = {
-        messages: chat.messages,
-        description: chat.description,
-        exportDate: new Date().toISOString(),
-      };
-
-      const blob = new Blob([JSON.stringify(chatData, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `chat-${new Date().toISOString()}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    },
+    prepareExportChat,
+    exportChat,
   };
 }
 

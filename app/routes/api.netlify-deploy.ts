@@ -21,7 +21,7 @@ export async function action({ request }: ActionFunctionArgs) {
 
     // If no siteId provided, create a new site
     if (!targetSiteId) {
-      const siteName = `bolt-diy-${chatId}-${Date.now()}`;
+      const siteName = `vibe-${chatId}-${Date.now()}`;
       const createSiteResponse = await fetch('https://api.netlify.com/api/v1/sites', {
         method: 'POST',
         headers: {
@@ -33,6 +33,8 @@ export async function action({ request }: ActionFunctionArgs) {
           custom_domain: null,
         }),
       });
+
+      console.log('createSiteResponse1', createSiteResponse);
 
       if (!createSiteResponse.ok) {
         return json({ error: 'Failed to create site' }, { status: 400 });
@@ -70,7 +72,7 @@ export async function action({ request }: ActionFunctionArgs) {
 
       // If no siteId provided or site doesn't exist, create a new site
       if (!targetSiteId) {
-        const siteName = `bolt-diy-${chatId}-${Date.now()}`;
+        const siteName = `vibe-${chatId}-${Date.now()}`;
         const createSiteResponse = await fetch('https://api.netlify.com/api/v1/sites', {
           method: 'POST',
           headers: {
@@ -82,6 +84,8 @@ export async function action({ request }: ActionFunctionArgs) {
             custom_domain: null,
           }),
         });
+
+        console.log('createSiteResponse2', createSiteResponse);
 
         if (!createSiteResponse.ok) {
           return json({ error: 'Failed to create site' }, { status: 400 });

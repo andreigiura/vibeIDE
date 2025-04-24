@@ -1,6 +1,17 @@
 import type { ActionFunctionArgs, LoaderFunction } from '@remix-run/cloudflare';
 import { json } from '@remix-run/cloudflare';
 
+/*
+ * import { checkDiskSpace } from 'check-disk-space'; // Removed unused import
+ * import { shell } from 'electron'; // REMOVED: Electron cannot be used server-side
+ */
+/*
+ * import * as os from 'os'; // Removed unused import
+ * import * as path from 'path'; // Removed unused import
+ * import * as fs from 'fs/promises'; // Removed unused import
+ */
+import { requireUserId } from '~/services/session.server';
+
 // Only import child_process if we're not in a Cloudflare environment
 let execSync: any;
 
@@ -264,48 +275,36 @@ const getDiskInfo = (): DiskInfo[] => {
   }
 };
 
-export const loader: LoaderFunction = async ({ request: _request }) => {
+export const loader: LoaderFunction = async ({ request }) => {
+  await requireUserId(request);
+
   try {
-    return json(getDiskInfo());
+    const diskInfo = await getDiskInfo();
+    return json(diskInfo);
   } catch (error) {
-    console.error('Failed to get disk info:', error);
-    return json(
-      [
-        {
-          filesystem: 'Unknown',
-          size: 0,
-          used: 0,
-          available: 0,
-          percentage: 0,
-          mountpoint: '/',
-          timestamp: new Date().toISOString(),
-          error: error instanceof Error ? error.message : 'Unknown error',
-        },
-      ],
-      { status: 500 },
-    );
+    console.error('Error getting disk info:', error);
+    return json({ error: error instanceof Error ? error.message : 'Failed to get disk information' }, { status: 500 });
   }
 };
 
-export const action = async ({ request: _request }: ActionFunctionArgs) => {
+// Action function to open a path
+export const action = async ({ request }: ActionFunctionArgs) => {
+  await requireUserId(request);
+
   try {
-    return json(getDiskInfo());
+    const { path: pathArg } = (await request.json()) as { path: string };
+
+    if (!pathArg) {
+      return json({ error: 'Path is required' }, { status: 400 });
+    }
+
+    // shell.openPath(pathArg); // REMOVED: Cannot use shell module server-side
+    console.warn(`Received request to open path via API: ${pathArg}. This action is disabled on the server.`);
+
+    // Return an error or a specific response indicating the action is not supported server-side
+    return json({ error: 'Opening paths is not supported via the server API.' }, { status: 400 });
   } catch (error) {
-    console.error('Failed to get disk info:', error);
-    return json(
-      [
-        {
-          filesystem: 'Unknown',
-          size: 0,
-          used: 0,
-          available: 0,
-          percentage: 0,
-          mountpoint: '/',
-          timestamp: new Date().toISOString(),
-          error: error instanceof Error ? error.message : 'Unknown error',
-        },
-      ],
-      { status: 500 },
-    );
+    console.error('Error processing open path request:', error);
+    return json({ error: error instanceof Error ? error.message : 'Failed to process request' }, { status: 500 });
   }
 };

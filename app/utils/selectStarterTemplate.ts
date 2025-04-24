@@ -82,6 +82,8 @@ const parseSelectedTemplate = (llmOutput: string): { template: string; title: st
 };
 
 export const selectStarterTemplate = async (options: { message: string; model: string; provider: ProviderInfo }) => {
+  console.log('--------------------------------selectStarterTemplate--------------------------------', options);
+
   const { message, model, provider } = options;
   const requestBody = {
     message,

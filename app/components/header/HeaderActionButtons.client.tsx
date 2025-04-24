@@ -11,6 +11,8 @@ import { NetlifyDeploymentLink } from '~/components/chat/NetlifyDeploymentLink.c
 import { VercelDeploymentLink } from '~/components/chat/VercelDeploymentLink.client';
 import { useVercelDeploy } from '~/components/deploy/VercelDeploy.client';
 import { useNetlifyDeploy } from '~/components/deploy/NetlifyDeploy.client';
+import { chatId, useChatHistory, chatMetadata, description } from '~/lib/persistence/useChatHistory';
+import { toast } from 'react-toastify';
 
 interface HeaderActionButtonsProps {}
 
@@ -31,6 +33,10 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
   const isStreaming = useStore(streamingState);
   const { handleVercelDeploy } = useVercelDeploy();
   const { handleNetlifyDeploy } = useNetlifyDeploy();
+  const currentChatId = useStore(chatId);
+  const metadata = useStore(chatMetadata);
+  const chatDescription = useStore(description);
+  const { prepareExportChat, getNetlifyUrl } = useChatHistory();
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -66,6 +72,59 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
       setDeployingTo(null);
     }
   };
+
+  const onVibechainPublish = async () => {
+    const netlifyUrl = getNetlifyUrl();
+    console.log('Current chat metadata:', metadata);
+
+    const appName = metadata?.appName;
+    const model = metadata?.model;
+    const appDescription = chatDescription || 'No description available';
+
+    console.log('Publishing info:', { netlifyUrl, appName, model, appDescription });
+
+    if (!netlifyUrl) {
+      toast.error('No Netlify deployment found');
+      return;
+    }
+
+    if (!appName) {
+      toast.error('Application name not found in metadata');
+      return;
+    }
+
+    const chat = await prepareExportChat();
+
+    if (!chat) {
+      toast.error('No chat found');
+      return;
+    }
+
+    try {
+      window.parent.postMessage(
+        {
+          type: 'publish-vibechain',
+          payload: {
+            url: netlifyUrl,
+            appName: appName || 'Unknown App',
+            model: model || 'Unknown Model',
+            description: appDescription,
+            chat,
+          },
+        },
+        '*',
+      );
+      toast.success('Publishing request sent');
+    } catch (error) {
+      console.error('Failed to send publish message:', error);
+      toast.error('Failed to initiate publishing');
+    }
+  };
+
+  const isNetlifyDeployed = netlifyConn.stats?.sites?.some((site) =>
+    site.name.includes(`vibe-${currentChatId?.toLocaleLowerCase()}`),
+  );
+  console.log('deployed site is 2: ', isNetlifyDeployed, `vibe-${currentChatId}`);
 
   return (
     <div className="flex">
@@ -107,7 +166,21 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
               </span>
               {netlifyConn.user && <NetlifyDeploymentLink />}
             </Button>
+            {/* Vibechain Publish Button */}
             <Button
+              active
+              onClick={() => {
+                onVibechainPublish();
+                setIsDropdownOpen(false);
+              }}
+              disabled={isDeploying || !activePreview || !netlifyConn.user || !isNetlifyDeployed}
+              className="flex items-center w-full px-4 py-2 text-sm text-bolt-elements-textPrimary hover:bg-bolt-elements-item-backgroundActive gap-2 rounded-md group relative"
+            >
+              {/* TODO: Add Vibechain icon if available */}
+              <span className="mx-auto">Publish on Vibechain</span>
+              {/* TODO: Potentially add a link/status indicator for Vibechain publish */}
+            </Button>
+            {/* <Button
               active
               onClick={() => {
                 onVercelDeploy();
@@ -142,7 +215,7 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
                 alt="cloudflare"
               />
               <span className="mx-auto">Deploy to Cloudflare (Coming Soon)</span>
-            </Button>
+            </Button> */}
           </div>
         )}
       </div>

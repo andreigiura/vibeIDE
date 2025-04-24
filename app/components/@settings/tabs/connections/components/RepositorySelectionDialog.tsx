@@ -163,9 +163,12 @@ function GitHubAuthDialog({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
         localStorage.setItem('github_connection', JSON.stringify(connectionData));
 
         // Set cookies for API requests
-        Cookies.set('githubToken', token);
-        Cookies.set('githubUsername', userData.login);
-        Cookies.set('git:github.com', JSON.stringify({ username: token, password: 'x-oauth-basic' }));
+        Cookies.set('githubToken', token, { sameSite: 'None', secure: true });
+        Cookies.set('githubUsername', userData.login, { sameSite: 'None', secure: true });
+        Cookies.set('git:github.com', JSON.stringify({ username: token, password: 'x-oauth-basic' }), {
+          sameSite: 'None',
+          secure: true,
+        });
 
         toast.success(`Successfully connected as ${userData.login}`);
         onClose();
@@ -368,9 +371,12 @@ export function RepositorySelectionDialog({ isOpen, onClose, onSelect }: Reposit
           localStorage.setItem('github_connection', JSON.stringify(newConnection));
 
           // Also save as cookies for API requests
-          Cookies.set('githubToken', token);
-          Cookies.set('githubUsername', userData.login);
-          Cookies.set('git:github.com', JSON.stringify({ username: token, password: 'x-oauth-basic' }));
+          Cookies.set('githubToken', token, { sameSite: 'None', secure: true });
+          Cookies.set('githubUsername', userData.login, { sameSite: 'None', secure: true });
+          Cookies.set('git:github.com', JSON.stringify({ username: token, password: 'x-oauth-basic' }), {
+            sameSite: 'None',
+            secure: true,
+          });
 
           // Refresh repositories after connection is established
           if (isOpen && activeTab === 'my-repos') {

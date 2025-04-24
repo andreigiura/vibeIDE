@@ -687,7 +687,11 @@ export class ImportExportService {
    */
   private static _safeSetCookie(key: string, value: any): void {
     try {
-      Cookies.set(key, typeof value === 'string' ? value : JSON.stringify(value), { expires: 365 });
+      Cookies.set(key, typeof value === 'string' ? value : JSON.stringify(value), {
+        expires: 365,
+        sameSite: 'None',
+        secure: true,
+      });
     } catch (err) {
       console.error(`Error setting cookie ${key}:`, err);
     }

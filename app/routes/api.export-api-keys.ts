@@ -1,8 +1,18 @@
-import type { LoaderFunction } from '@remix-run/cloudflare';
+import type { LoaderFunction, LoaderFunctionArgs } from '@remix-run/cloudflare';
+import { requireUserId } from '~/services/session.server';
 import { LLMManager } from '~/lib/modules/llm/manager';
 import { getApiKeysFromCookie } from '~/lib/api/cookies';
 
-export const loader: LoaderFunction = async ({ context, request }) => {
+// Define context type locally if needed, or remove if unused
+interface AppContext {
+  env?: {
+    [key: string]: string | undefined;
+  };
+}
+
+export const loader: LoaderFunction = async ({ context, request }: LoaderFunctionArgs & { context?: AppContext }) => {
+  await requireUserId(request);
+
   // Get API keys from cookie
   const cookieHeader = request.headers.get('Cookie');
   const apiKeysFromCookie = getApiKeysFromCookie(cookieHeader);

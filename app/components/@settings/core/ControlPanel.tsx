@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '@nanostores/react';
-import { Switch } from '@radix-ui/react-switch';
+
+// import { Switch } from '@radix-ui/react-switch';
 import * as RadixDialog from '@radix-ui/react-dialog';
 import { classNames } from '~/utils/classNames';
 import { TabManagement } from '~/components/@settings/shared/components/TabManagement';
@@ -14,7 +15,8 @@ import { useDebugStatus } from '~/lib/hooks/useDebugStatus';
 import {
   tabConfigurationStore,
   developerModeStore,
-  setDeveloperMode,
+
+  // setDeveloperMode,
   resetTabConfiguration,
 } from '~/lib/stores/settings';
 import { profileStore } from '~/lib/stores/profile';
@@ -59,12 +61,14 @@ interface BaseTabConfig {
   order: number;
 }
 
-interface AnimatedSwitchProps {
-  checked: boolean;
-  onCheckedChange: (checked: boolean) => void;
-  id: string;
-  label: string;
-}
+/*
+ * interface AnimatedSwitchProps {
+ *   checked: boolean;
+ *   onCheckedChange: (checked: boolean) => void;
+ *   id: string;
+ *   label: string;
+ * }
+ */
 
 const TAB_DESCRIPTIONS: Record<TabType, string> = {
   profile: 'Manage your profile and account settings',
@@ -92,65 +96,67 @@ const BetaLabel = () => (
   </div>
 );
 
-const AnimatedSwitch = ({ checked, onCheckedChange, id, label }: AnimatedSwitchProps) => {
-  return (
-    <div className="flex items-center gap-2">
-      <Switch
-        id={id}
-        checked={checked}
-        onCheckedChange={onCheckedChange}
-        className={classNames(
-          'relative inline-flex h-6 w-11 items-center rounded-full',
-          'transition-all duration-300 ease-[cubic-bezier(0.87,_0,_0.13,_1)]',
-          'bg-gray-200 dark:bg-gray-700',
-          'data-[state=checked]:bg-purple-500',
-          'focus:outline-none focus:ring-2 focus:ring-purple-500/20',
-          'cursor-pointer',
-          'group',
-        )}
-      >
-        <motion.span
-          className={classNames(
-            'absolute left-[2px] top-[2px]',
-            'inline-block h-5 w-5 rounded-full',
-            'bg-white shadow-lg',
-            'transition-shadow duration-300',
-            'group-hover:shadow-md group-active:shadow-sm',
-            'group-hover:scale-95 group-active:scale-90',
-          )}
-          initial={false}
-          transition={{
-            type: 'spring',
-            stiffness: 500,
-            damping: 30,
-            duration: 0.2,
-          }}
-          animate={{
-            x: checked ? '1.25rem' : '0rem',
-          }}
-        >
-          <motion.div
-            className="absolute inset-0 rounded-full bg-white"
-            initial={false}
-            animate={{
-              scale: checked ? 1 : 0.8,
-            }}
-            transition={{ duration: 0.2 }}
-          />
-        </motion.span>
-        <span className="sr-only">Toggle {label}</span>
-      </Switch>
-      <div className="flex items-center gap-2">
-        <label
-          htmlFor={id}
-          className="text-sm text-gray-500 dark:text-gray-400 select-none cursor-pointer whitespace-nowrap w-[88px]"
-        >
-          {label}
-        </label>
-      </div>
-    </div>
-  );
-};
+/*
+ * const AnimatedSwitch = ({ checked, onCheckedChange, id, label }: AnimatedSwitchProps) => {
+ *   return (
+ *     <div className="flex items-center gap-2">
+ *       <Switch
+ *         id={id}
+ *         checked={checked}
+ *         onCheckedChange={onCheckedChange}
+ *         className={classNames(
+ *           'relative inline-flex h-6 w-11 items-center rounded-full',
+ *           'transition-all duration-300 ease-[cubic-bezier(0.87,_0,_0.13,_1)]',
+ *           'bg-gray-200 dark:bg-gray-700',
+ *           'data-[state=checked]:bg-purple-500',
+ *           'focus:outline-none focus:ring-2 focus:ring-purple-500/20',
+ *           'cursor-pointer',
+ *           'group',
+ *         )}
+ *       >
+ *         <motion.span
+ *           className={classNames(
+ *             'absolute left-[2px] top-[2px]',
+ *             'inline-block h-5 w-5 rounded-full',
+ *             'bg-white shadow-lg',
+ *             'transition-shadow duration-300',
+ *             'group-hover:shadow-md group-active:shadow-sm',
+ *             'group-hover:scale-95 group-active:scale-90',
+ *           )}
+ *           initial={false}
+ *           transition={{
+ *             type: 'spring',
+ *             stiffness: 500,
+ *             damping: 30,
+ *             duration: 0.2,
+ *           }}
+ *           animate={{
+ *             x: checked ? '1.25rem' : '0rem',
+ *           }}
+ *         >
+ *           <motion.div
+ *             className="absolute inset-0 rounded-full bg-white"
+ *             initial={false}
+ *             animate={{
+ *               scale: checked ? 1 : 0.8,
+ *             }}
+ *             transition={{ duration: 0.2 }}
+ *           />
+ *         </motion.span>
+ *         <span className="sr-only">Toggle {label}</span>
+ *       </Switch>
+ *       <div className="flex items-center gap-2">
+ *         <label
+ *           htmlFor={id}
+ *           className="text-sm text-gray-500 dark:text-gray-400 select-none cursor-pointer whitespace-nowrap w-[88px]"
+ *         >
+ *           {label}
+ *         </label>
+ *       </div>
+ *     </div>
+ *   );
+ * };
+ */
 
 export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
   // State
@@ -221,6 +227,9 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
       return devTabs.sort((a, b) => a.order - b.order);
     }
 
+    // --- User Mode Filtering ---
+    const disabledTabs: TabType[] = ['features', 'notifications', 'event-logs']; // Tabs to disable
+
     // Optimize user mode tab filtering
     return tabConfiguration.userTabs
       .filter((tab) => {
@@ -228,7 +237,16 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
           return false;
         }
 
+        // --- Disable specific tabs ---
+        if (disabledTabs.includes(tab.id)) {
+          console.log(`ControlPanel: Hiding disabled tab - ${tab.id}`);
+          return false; // Explicitly hide these tabs
+        }
+
+        // --- End disable specific tabs ---
+
         if (tab.id === 'notifications' && notificationsDisabled) {
+          // This check might be redundant now but kept for clarity
           return false;
         }
 
@@ -293,10 +311,12 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
     }
   };
 
-  const handleDeveloperModeChange = (checked: boolean) => {
-    console.log('Developer mode changed:', checked);
-    setDeveloperMode(checked);
-  };
+  /*
+   * const handleDeveloperModeChange = (checked: boolean) => {
+   *   console.log('Developer mode changed:', checked);
+   *   setDeveloperMode(checked);
+   * };
+   */
 
   // Add effect to log developer mode changes
   useEffect(() => {
@@ -466,14 +486,14 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
 
                   <div className="flex items-center gap-6">
                     {/* Mode Toggle */}
-                    <div className="flex items-center gap-2 min-w-[140px] border-r border-gray-200 dark:border-gray-800 pr-6">
+                    {/* <div className="flex items-center gap-2 min-w-[140px] border-r border-gray-200 dark:border-gray-800 pr-6">
                       <AnimatedSwitch
                         id="developer-mode"
                         checked={developerMode}
                         onCheckedChange={handleDeveloperModeChange}
                         label={developerMode ? 'Developer Mode' : 'User Mode'}
                       />
-                    </div>
+                    </div> */}
 
                     {/* Avatar and Dropdown */}
                     <div className="border-l border-gray-200 dark:border-gray-800 pl-6">
