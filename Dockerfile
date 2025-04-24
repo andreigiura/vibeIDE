@@ -54,7 +54,7 @@ ENV WRANGLER_SEND_METRICS=false \
 # Pre-configure wrangler to disable metrics
 RUN mkdir -p /root/.config/.wrangler && \
     echo '{"enabled":false}' > /root/.config/.wrangler/metrics.json
-
+ENV NODE_OPTIONS=--max-old-space-size=4096
 RUN pnpm run build
 
 CMD [ "pnpm", "run", "dockerstart"]
