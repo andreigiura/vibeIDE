@@ -27,6 +27,7 @@ import { logStore } from '~/lib/stores/logs';
 import { streamingState } from '~/lib/stores/streaming';
 import { filesToArtifacts } from '~/utils/fileUtils';
 import { supabaseConnection } from '~/lib/stores/supabase';
+
 // import { ChatActionRunner } from '~/lib/actions/ChatActionRunner'; // Commented out import
 import { SupabaseChatAlert } from '~/components/chat/SupabaseAlert';
 
@@ -210,7 +211,6 @@ export const ChatImpl = memo(
         setData(undefined);
 
         if (usage) {
-          console.log('Token usage:', usage);
           logStore.logProvider('Chat response completed', {
             component: 'Chat',
             action: 'response',
@@ -228,8 +228,6 @@ export const ChatImpl = memo(
     });
     useEffect(() => {
       const prompt = searchParams.get('prompt');
-
-      // console.log(prompt, searchParams, model, provider);
 
       if (prompt) {
         setSearchParams({});
@@ -532,8 +530,6 @@ export const ChatImpl = memo(
       const needsUpdate = metadata?.appName !== currentAppName || metadata?.model !== currentModel;
 
       if (needsUpdate && (currentAppName || currentModel)) {
-        console.log('Updating metadata:', { appName: currentAppName, model: currentModel });
-
         const existingGitUrl = metadata?.gitUrl || '';
         updateChatMestaData({
           ...(metadata || { gitUrl: '' }),
@@ -609,6 +605,7 @@ export const ChatImpl = memo(
         deployAlert={deployAlert}
         clearDeployAlert={() => workbenchStore.clearDeployAlert()}
         data={chatData}
+
         // actionRunner={actionRunner} // Commented out prop usage
       />
     );

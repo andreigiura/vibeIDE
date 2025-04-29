@@ -85,13 +85,13 @@ export function useChatHistory() {
             }
 
             let filteredMessages = storedMessages.messages.slice(startingIdx + 1, endingIdx);
-            let archivedMessages: Message[] = [];
+            let newArchivedMessages: Message[] = [];
 
             if (startingIdx >= 0) {
-              archivedMessages = storedMessages.messages.slice(0, startingIdx + 1);
+              newArchivedMessages = storedMessages.messages.slice(0, startingIdx + 1);
             }
 
-            setArchivedMessages(archivedMessages);
+            setArchivedMessages(newArchivedMessages);
 
             if (startingIdx > 0) {
               const files = Object.entries(snapshot?.files || {})
@@ -266,17 +266,29 @@ ${value.content}
     const deployedSite = netlifyConnection
       .get()
       .stats?.sites?.find((site) => site.name.includes(`vibe-${currentChatId?.toLocaleLowerCase()}`));
-    console.log('deployed site is3: ', deployedSite, `vibe-${currentChatId}`);
 
     return deployedSite?.url || deployedSite?.ssl_url;
   }, []);
 
   const prepareExportChat = async (id = urlId): Promise<string | undefined> => {
+    const currentChatId = chatId.get();
+
+    if (!db || !currentChatId) {
+      return undefined;
+    }
+
+    const persistedChat = await getMessages(db, currentChatId);
+
+    if (!id) {
+      id = persistedChat?.urlId;
+    }
+
     if (!db || !id) {
       return undefined;
     }
 
     const chat = await getMessages(db, id);
+
     const chatData = {
       messages: chat.messages,
       description: chat.description,
@@ -318,77 +330,206 @@ ${value.content}
     ready: !mixedId || ready,
     initialMessages,
     getNetlifyUrl,
-    updateChatMestaData: async (metadata: IChatMetadata) => {
+    updateChatMestaData: async (metadataToSet: IChatMetadata) => {
       const id = chatId.get();
+      const currentDescription = description.get();
 
       if (!db || !id) {
+        console.warn('[updateChatMetadata] DB or Chat ID missing.');
         return;
       }
 
       try {
-        await setMessages(db, id, initialMessages, urlId, description.get(), undefined, metadata);
-        chatMetadata.set(metadata);
+        const currentChat = await getMessages(db, id);
+
+        if (!currentChat) {
+          console.error(`[updateChatMetadata] Chat not found for ID: ${id}. Cannot update metadata.`);
+          toast.error('Failed to update chat metadata: Chat not found.');
+
+          return;
+        }
+
+        await setMessages(
+          db,
+          id,
+          currentChat.messages,
+          currentChat.urlId,
+          currentDescription,
+          currentChat.timestamp,
+          metadataToSet,
+        );
+        chatMetadata.set(metadataToSet);
       } catch (error) {
         toast.error('Failed to update chat metadata');
-        console.error(error);
+        console.error('[updateChatMetadata] Error during save:', error);
       }
     },
     storeMessageHistory: async (messages: Message[]) => {
-      if (!db || messages.length === 0) {
+      if (!db) {
+        console.warn('[storeMessageHistory] DB not available');
         return;
       }
 
-      const { firstArtifact } = workbenchStore;
-      messages = messages.filter((m) => !m.annotations?.includes('no-store'));
+      // Filter out messages marked as 'no-store' right away
+      const incomingMessages = messages.filter((m) => !m.annotations?.includes('no-store'));
 
-      let _urlId = urlId;
-
-      if (!urlId && firstArtifact?.id) {
-        const urlId = await getUrlId(db, firstArtifact.id);
-        _urlId = urlId;
-        navigateChat(urlId);
-        setUrlId(urlId);
+      // If filtering removed all messages, it might mean there's nothing new to save.
+      if (incomingMessages.length === 0 && messages.length > 0) {
+        // Let's return here to avoid saving an empty meaningful array
+        return;
       }
 
-      let chatSummary: string | undefined = undefined;
-      const lastMessage = messages[messages.length - 1];
+      let currentChatId = chatId.get();
+      let currentDescription = description.get(); // Use let as it might be updated by artifact title
+      const currentMetadata = chatMetadata.get();
+      let currentUrlId = urlId; // Use state variable, allow updates
 
-      if (lastMessage.role === 'assistant') {
-        const annotations = lastMessage.annotations as JSONValue[];
-        const filteredAnnotations = (annotations?.filter(
-          (annotation: JSONValue) =>
-            annotation && typeof annotation === 'object' && Object.keys(annotation).includes('type'),
-        ) || []) as { type: string; value: any } & { [key: string]: any }[];
-
-        if (filteredAnnotations.find((annotation) => annotation.type === 'chatSummary')) {
-          chatSummary = filteredAnnotations.find((annotation) => annotation.type === 'chatSummary')?.summary;
-        }
-      }
-
-      takeSnapshot(messages[messages.length - 1].id, workbenchStore.files.get(), _urlId, chatSummary);
-
-      if (!description.get() && firstArtifact?.title) {
-        description.set(firstArtifact?.title);
-      }
-
-      if (initialMessages.length === 0 && !chatId.get()) {
-        const nextId = await getNextId(db);
-
+      // --- Start: Handle new chat creation (ensures chatId is set) --- //
+      if (initialMessages.length === 0 && !currentChatId) {
+        const nextId = await getNextId();
         chatId.set(nextId);
+        currentChatId = nextId; // Update local variable for this execution
 
-        if (!urlId) {
+        // Also try to generate and set urlId immediately if possible
+        const { firstArtifact } = workbenchStore;
+
+        if (!currentUrlId && firstArtifact?.id) {
+          // Check if needed and possible
+          const newUrlId = await getUrlId(db, firstArtifact.id);
+          currentUrlId = newUrlId; // Update local variable
+
+          setUrlId(newUrlId); // Update state hook
+        }
+
+        if (!currentUrlId) {
+          // Fallback navigation if urlId couldn't be set
           navigateChat(nextId);
         }
       }
 
+      // --- End: Handle new chat creation --- //
+
+      if (!currentChatId) {
+        console.error('[storeMessageHistory] No valid chatId found after checking for new chat. Aborting save.');
+        toast.error('Cannot save messages: Chat ID is missing.');
+
+        return;
+      }
+
+      // --- Start: Robust Message Handling --- //
+      let finalMessagesToSave: Message[] = [];
+      let persistedChat: ChatHistoryItem | null = null;
+      let fetchError: Error | null = null;
+
+      try {
+        persistedChat = await getMessages(db, currentChatId);
+      } catch (error) {
+        fetchError = error as Error;
+        console.error('[storeMessageHistory] Error fetching persisted messages:', fetchError);
+      }
+
+      const persistedMessages = persistedChat?.messages || [];
+
+      // Core recovery logic
+      if (!fetchError && incomingMessages.length < persistedMessages.length && persistedMessages.length > 0) {
+        // Suspicious: incoming is shorter AND fetch succeeded.
+        console.warn('[storeMessageHistory] RECOVERY TRIGGERED: Incoming shorter than persisted.');
+
+        const lastPersistedId = persistedMessages[persistedMessages.length - 1].id;
+        const lastPersistedIndexInIncoming = incomingMessages.findIndex((m) => m.id === lastPersistedId);
+        let newMessages: Message[] = [];
+
+        if (lastPersistedIndexInIncoming !== -1) {
+          newMessages = incomingMessages.slice(lastPersistedIndexInIncoming + 1);
+        } else {
+          console.warn(
+            '[storeMessageHistory] Recovery: Last persisted ID not found in incoming. Appending ALL incoming messages as new.',
+          );
+          newMessages = incomingMessages; // Append all incoming as they might be a new branch
+        }
+
+        finalMessagesToSave = [...archivedMessages, ...persistedMessages, ...newMessages];
+      } else {
+        // Incoming seems valid OR fetch failed (in which case we trust incoming)
+        if (fetchError) {
+          console.warn('[storeMessageHistory] Using incoming messages because fetching persisted messages failed.');
+        }
+
+        finalMessagesToSave = [...archivedMessages, ...incomingMessages];
+      }
+
+      // Ensure no duplicates from joining archived + rest (simple check)
+      if (finalMessagesToSave.length > 0) {
+        const uniqueMessages = finalMessagesToSave.reduce((acc, current) => {
+          if (!acc.some((item) => item.id === current.id)) {
+            acc.push(current);
+          }
+
+          return acc;
+        }, [] as Message[]);
+
+        if (uniqueMessages.length < finalMessagesToSave.length) {
+          console.warn('[storeMessageHistory] Removed duplicate message IDs during final save prep.');
+          finalMessagesToSave = uniqueMessages;
+        }
+      }
+
+      // --- End: Robust Message Handling --- //
+
+      // --- Start: Snapshot Logic (Run AFTER determining finalMessagesToSave) --- //
+      if (finalMessagesToSave.length > archivedMessages.length) {
+        // Ensure there's at least one non-archived message
+        const { firstArtifact } = workbenchStore;
+
+        // Attempt to set description from artifact title IF description is currently unset
+        if (!currentDescription && firstArtifact?.title) {
+          description.set(firstArtifact.title);
+          currentDescription = description.get(); // Update local variable for save
+        }
+
+        // Ensure urlId is set if possible (might have been set during new chat creation)
+        if (!currentUrlId && firstArtifact?.id && currentChatId === firstArtifact.id) {
+          // Re-check generation condition more specific
+          const newUrlId = await getUrlId(db, firstArtifact.id);
+          currentUrlId = newUrlId;
+
+          setUrlId(newUrlId);
+        }
+
+        const lastMessageToSave = finalMessagesToSave[finalMessagesToSave.length - 1];
+        let chatSummary: string | undefined = undefined;
+
+        if (lastMessageToSave.role === 'assistant') {
+          const annotations = lastMessageToSave.annotations as JSONValue[];
+          const filteredAnnotations = (annotations?.filter(
+            (annotation: JSONValue) =>
+              annotation && typeof annotation === 'object' && Object.keys(annotation).includes('type'),
+          ) || []) as { type: string; value: any; summary?: string; [key: string]: any }[]; // Added summary type hint
+          const summaryAnnotation = filteredAnnotations.find((annotation) => annotation.type === 'chatSummary');
+
+          if (summaryAnnotation) {
+            chatSummary = summaryAnnotation.summary;
+          }
+        }
+
+        if (currentUrlId) {
+          // Check if urlId is available before taking snapshot
+          takeSnapshot(lastMessageToSave.id, workbenchStore.files.get(), currentUrlId, chatSummary);
+        } else {
+          console.warn('[storeMessageHistory] Cannot take snapshot without urlId.');
+        }
+      }
+
+      // --- End: Snapshot Logic --- //
+
       await setMessages(
         db,
-        chatId.get() as string,
-        [...archivedMessages, ...messages],
-        urlId,
-        description.get(),
-        undefined,
-        chatMetadata.get(),
+        currentChatId,
+        finalMessagesToSave, // Use the robustly determined array
+        currentUrlId,
+        currentDescription,
+        undefined, // Timestamp handled by setMessages
+        currentMetadata, // Read earlier
       );
     },
     duplicateCurrentChat: async (listItemId: string) => {
@@ -402,7 +543,6 @@ ${value.content}
         toast.success('Chat duplicated successfully');
       } catch (error) {
         toast.error('Failed to duplicate chat');
-        console.log(error);
       }
     },
     importChat: async (description: string, messages: Message[], metadata?: IChatMetadata) => {

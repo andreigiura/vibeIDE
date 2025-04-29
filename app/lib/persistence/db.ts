@@ -64,6 +64,24 @@ export async function setMessages(
   timestamp?: string,
   metadata?: IChatMetadata,
 ): Promise<void> {
+  // --- Start: Ensure urlId exists --- //
+  let finalUrlId = urlId;
+
+  if (finalUrlId === undefined || finalUrlId === null) {
+    try {
+      // Generate a urlId based on the primary id
+      finalUrlId = await getUrlId(db, id);
+    } catch (genError) {
+      console.error(`[setMessages] Failed to generate urlId for id ${id}:`, genError);
+
+      // Proceed with undefined if generation fails, but log the error.
+      finalUrlId = undefined;
+    }
+  }
+
+  // --- End: Ensure urlId exists --- //
+
+  // Now, perform the transaction within a new Promise
   return new Promise((resolve, reject) => {
     const transaction = db.transaction('chats', 'readwrite');
     const store = transaction.objectStore('chats');
@@ -73,17 +91,21 @@ export async function setMessages(
       return;
     }
 
-    const request = store.put({
+    const dataToPut = {
       id,
       messages,
-      urlId,
+      urlId: finalUrlId, // Use the potentially generated urlId
       description,
       timestamp: timestamp ?? new Date().toISOString(),
       metadata,
-    });
+    };
+
+    const request = store.put(dataToPut);
 
     request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
+
+    // Propagate the error from the request
+    request.onerror = (event) => reject((event.target as IDBRequest).error);
   });
 }
 
