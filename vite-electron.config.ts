@@ -18,6 +18,7 @@ const getGitHash = () => {
 
 export default defineConfig((config) => {
   return {
+    base: process.env.VITE_BASE || '/',
     define: {
       __COMMIT_HASH: JSON.stringify(getGitHash()),
       __APP_VERSION: JSON.stringify(process.env.npm_package_version),
