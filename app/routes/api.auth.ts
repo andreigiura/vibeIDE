@@ -19,7 +19,7 @@ async function validateOneTimeToken(token: string): Promise<boolean> {
   const { NativeAuthServer: nativeAuthServer } = await import('~/routes/nativeAuth/native.auth.server');
   const server = new nativeAuthServer({
     acceptedOrigins: ['*'],
-    apiUrl: 'https://api.vibechain.ai',
+    apiUrl: 'https://vibeox-api.multiversx.com',
     maxExpirySeconds: 86400,
   });
 
@@ -35,7 +35,7 @@ async function decodeToken(token: string): Promise<UserProfile | null> {
   const { NativeAuthServer: nativeAuthServer } = await import('~/routes/nativeAuth/native.auth.server');
   const server = new nativeAuthServer({
     acceptedOrigins: ['*'],
-    apiUrl: 'https://api.vibechain.ai',
+    apiUrl: 'https://vibeox-api.multiversx.com',
     maxExpirySeconds: 86400,
   });
 
