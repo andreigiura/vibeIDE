@@ -76,10 +76,12 @@ export async function action({ request, context }: ActionFunctionArgs) {
       processEnvKeys: Object.keys(process.env).filter((key) => key.startsWith('S3_')),
     });
 
-    const bucketName = cloudflareEnv.S3_BUCKET_NAME || process.env.S3_BUCKET_NAME;
-    const region = cloudflareEnv.S3_REGION || process.env.S3_REGION;
-    const accessKeyId = cloudflareEnv.S3_ACCESS_KEY_ID || process.env.S3_ACCESS_KEY_ID;
-    const secretAccessKey = cloudflareEnv.S3_SECRET_ACCESS_KEY || process.env.S3_SECRET_ACCESS_KEY;
+    const bucketName = cloudflareEnv.S3_BUCKET_NAME || import.meta.env.S3_BUCKET_NAME || process.env.S3_BUCKET_NAME;
+    const region = cloudflareEnv.S3_REGION || import.meta.env.S3_REGION || process.env.S3_REGION;
+    const accessKeyId =
+      cloudflareEnv.S3_ACCESS_KEY_ID || import.meta.env.S3_ACCESS_KEY_ID || process.env.S3_ACCESS_KEY_ID;
+    const secretAccessKey =
+      cloudflareEnv.S3_SECRET_ACCESS_KEY || import.meta.env.S3_SECRET_ACCESS_KEY || process.env.S3_SECRET_ACCESS_KEY;
 
     if (!bucketName || !region || !accessKeyId || !secretAccessKey) {
       console.error('S3 configuration missing in environment variables');
