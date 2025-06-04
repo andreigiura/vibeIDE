@@ -2,7 +2,7 @@ import type { Message } from 'ai';
 import { createScopedLogger } from '~/utils/logger';
 import type { ChatHistoryItem } from './useChatHistory';
 import { customAlphabet } from 'nanoid';
-import { nolookalikes } from 'nanoid-dictionary';
+import { lowercase } from 'nanoid-dictionary';
 export interface IChatMetadata {
   gitUrl: string;
   gitBranch?: string;
@@ -152,7 +152,7 @@ export async function deleteById(db: IDBDatabase, id: string): Promise<void> {
  * @returns A promise that resolves to a unique nanoid string (length 10).
  */
 export async function getNextId(): Promise<string> {
-  return customAlphabet(nolookalikes, 10)();
+  return customAlphabet(lowercase, 10)();
 }
 
 /**

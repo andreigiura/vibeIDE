@@ -1,23 +1,36 @@
 import { useStore } from '@nanostores/react';
 import useViewport from '~/lib/hooks';
 import { chatStore } from '~/lib/stores/chat';
-import { netlifyConnection } from '~/lib/stores/netlify';
+
+// import { netlifyConnection } from '~/lib/stores/netlify'; // Commented out as netlifyConn is not used
 import { workbenchStore } from '~/lib/stores/workbench';
 import { classNames } from '~/utils/classNames';
 import { useEffect, useRef, useState } from 'react';
+import { useFetcher } from '@remix-run/react';
 import { streamingState } from '~/lib/stores/streaming';
-import { NetlifyDeploymentLink } from '~/components/chat/NetlifyDeploymentLink.client';
-import { useNetlifyDeploy } from '~/components/deploy/NetlifyDeploy.client';
+
+/*
+ * import { NetlifyDeploymentLink } from '~/components/chat/NetlifyDeploymentLink.client';
+ * import { useNetlifyDeploy } from '~/components/deploy/NetlifyDeploy.client'; // Commented out as onNetlifyDeploy is not used
+ */
 import { useS3Deploy } from '~/components/deploy/S3Deploy.client';
+import { S3DeploymentLink } from '~/components/S3DeploymentLink.client';
 import { chatId, useChatHistory, chatMetadata, description } from '~/lib/persistence/useChatHistory';
 import { toast } from 'react-toastify';
+
+interface S3CheckResponse {
+  deployed: boolean;
+  url?: string;
+  error?: string;
+}
 
 interface HeaderActionButtonsProps {}
 
 export function HeaderActionButtons({}: HeaderActionButtonsProps) {
   const showWorkbench = useStore(workbenchStore.showWorkbench);
   const { showChat } = useStore(chatStore);
-  const netlifyConn = useStore(netlifyConnection);
+
+  // const netlifyConn = useStore(netlifyConnection); // Commented out
   const [activePreviewIndex] = useState(0);
   const previews = useStore(workbenchStore.previews);
   const activePreview = previews[activePreviewIndex];
@@ -28,12 +41,21 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const isStreaming = useStore(streamingState);
-  const { handleNetlifyDeploy } = useNetlifyDeploy();
+
+  // const { handleNetlifyDeploy } = useNetlifyDeploy(); // Commented out
   const { handleS3Deploy } = useS3Deploy();
   const currentChatId = useStore(chatId);
   const metadata = useStore(chatMetadata);
   const chatDescription = useStore(description);
-  const { prepareExportChat, getNetlifyUrl } = useChatHistory();
+  const { prepareExportChat } = useChatHistory();
+
+  const s3Fetcher = useFetcher<S3CheckResponse>();
+
+  useEffect(() => {
+    if (currentChatId) {
+      s3Fetcher.load(`/api/s3-check-deployment?chatId=${currentChatId}`);
+    }
+  }, [currentChatId]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -46,17 +68,18 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const onNetlifyDeploy = async () => {
-    setIsDeploying(true);
-    setDeployingTo('netlify');
-
-    try {
-      await handleNetlifyDeploy();
-    } finally {
-      setIsDeploying(false);
-      setDeployingTo(null);
-    }
-  };
+  /*
+   * const onNetlifyDeploy = async () => { // Commented out
+   *   setIsDeploying(true);
+   *   setDeployingTo('netlify');
+   *   try {
+   *     await handleNetlifyDeploy();
+   *   } finally {
+   *     setIsDeploying(false);
+   *     setDeployingTo(null);
+   *   }
+   * };
+   */
 
   const onS3Deploy = async () => {
     setIsDeploying(true);
@@ -64,6 +87,10 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
 
     try {
       await handleS3Deploy();
+
+      if (currentChatId) {
+        s3Fetcher.load(`/api/s3-check-deployment?chatId=${currentChatId}`);
+      }
     } finally {
       setIsDeploying(false);
       setDeployingTo(null);
@@ -71,17 +98,17 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
   };
 
   const onVibechainPublish = async () => {
-    const netlifyUrl = getNetlifyUrl();
-    console.log('Current chat metadata:', metadata);
+    const s3Url = s3Fetcher.data?.deployed ? s3Fetcher.data.url : null;
+    console.log('Current chat metadata for S3 publish:', metadata);
 
     const appName = metadata?.appName;
     const model = metadata?.model;
     const appDescription = chatDescription || 'No description available';
 
-    console.log('Publishing info:', { netlifyUrl, appName, model, appDescription });
+    console.log('Publishing info (S3):', { s3Url, appName, model, appDescription });
 
-    if (!netlifyUrl) {
-      toast.error('No Netlify deployment found');
+    if (!s3Url) {
+      toast.error('No S3 deployment found. Please deploy to S3 first.');
       return;
     }
 
@@ -102,7 +129,7 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
         {
           type: 'publish-vibechain',
           payload: {
-            url: netlifyUrl,
+            url: s3Url,
             appName: appName || 'Unknown App',
             model: model || 'Unknown Model',
             description: appDescription,
@@ -118,10 +145,7 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
     }
   };
 
-  const isNetlifyDeployed = netlifyConn.stats?.sites?.some((site) =>
-    site.name.includes(`vibe-${currentChatId?.toLocaleLowerCase()}`),
-  );
-  console.log('deployed site is 2: ', isNetlifyDeployed, `vibe-${currentChatId}`);
+  const isS3Deployed = s3Fetcher.data?.deployed === true && !!s3Fetcher.data?.url;
 
   return (
     <div className="flex">
@@ -142,13 +166,14 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
 
         {isDropdownOpen && (
           <div className="absolute right-2 flex flex-col gap-1 z-50 p-1 mt-1 min-w-[13.5rem] bg-bolt-elements-background-depth-2 rounded-md shadow-lg bg-bolt-elements-backgroundDefault border border-bolt-elements-borderColor">
+            {/* Netlify Deploy Button - Commented Out
             <Button
               active
               onClick={() => {
-                onNetlifyDeploy();
+                // onNetlifyDeploy();
                 setIsDropdownOpen(false);
               }}
-              disabled={isDeploying || !activePreview || !netlifyConn.user}
+              // disabled={isDeploying || !activePreview || !netlifyConn?.user}
               className="flex items-center w-full px-4 py-2 text-sm text-bolt-elements-textPrimary hover:bg-bolt-elements-item-backgroundActive gap-2 rounded-md group relative"
             >
               <img
@@ -159,10 +184,10 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
                 src="https://cdn.simpleicons.org/netlify"
               />
               <span className="mx-auto">
-                {!netlifyConn.user ? 'No Netlify Account Connected' : 'Deploy to Netlify'}
+                {/*!netlifyConn?.user ? 'No Netlify Account Connected' : 'Deploy to Netlify'}
               </span>
-              {netlifyConn.user && <NetlifyDeploymentLink />}
-            </Button>
+              {netlifyConn?.user && <NetlifyDeploymentLink />}
+            </Button> */}
             {/* S3 Deploy Button */}
             <Button
               active
@@ -173,14 +198,15 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
               disabled={isDeploying || !activePreview}
               className="flex items-center w-full px-4 py-2 text-sm text-bolt-elements-textPrimary hover:bg-bolt-elements-item-backgroundActive gap-2 rounded-md group relative"
             >
-              <img
+              {/* <img
                 className="w-5 h-5"
                 height="24"
                 width="24"
                 crossOrigin="anonymous"
                 src="https://cdn.simpleicons.org/amazons3"
-              />
+              /> */}
               <span className="mx-auto">Deploy to S3</span>
+              <S3DeploymentLink chatId={currentChatId || null} />
             </Button>
             {/* Vibechain Publish Button */}
             <Button
@@ -189,56 +215,21 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
                 onVibechainPublish();
                 setIsDropdownOpen(false);
               }}
-              disabled={isDeploying || !activePreview || !netlifyConn.user || !isNetlifyDeployed}
+              disabled={isDeploying || !activePreview || !isS3Deployed}
               className="flex items-center w-full px-4 py-2 text-sm text-bolt-elements-textPrimary hover:bg-bolt-elements-item-backgroundActive gap-2 rounded-md group relative"
             >
               {/* TODO: Add Vibechain icon if available */}
-              <span className="mx-auto">Publish on Vibechain</span>
+              <span className="mx-auto">Publish on VibeOX</span>
               {/* TODO: Potentially add a link/status indicator for Vibechain publish */}
             </Button>
-            {/* <Button
-              active
-              onClick={() => {
-                onVercelDeploy();
-                setIsDropdownOpen(false);
-              }}
-              disabled={isDeploying || !activePreview || !vercelConn.user}
-              className="flex items-center w-full px-4 py-2 text-sm text-bolt-elements-textPrimary hover:bg-bolt-elements-item-backgroundActive gap-2 rounded-md group relative"
-            >
-              <img
-                className="w-5 h-5 bg-black p-1 rounded"
-                height="24"
-                width="24"
-                crossOrigin="anonymous"
-                src="https://cdn.simpleicons.org/vercel/white"
-                alt="vercel"
-              />
-              <span className="mx-auto">{!vercelConn.user ? 'No Vercel Account Connected' : 'Deploy to Vercel'}</span>
-              {vercelConn.user && <VercelDeploymentLink />}
-            </Button>
-            <Button
-              active={false}
-              disabled
-              className="flex items-center w-full rounded-md px-4 py-2 text-sm text-bolt-elements-textTertiary gap-2"
-            >
-              <span className="sr-only">Coming Soon</span>
-              <img
-                className="w-5 h-5"
-                height="24"
-                width="24"
-                crossOrigin="anonymous"
-                src="https://cdn.simpleicons.org/cloudflare"
-                alt="cloudflare"
-              />
-              <span className="mx-auto">Deploy to Cloudflare (Coming Soon)</span>
-            </Button> */}
+            {/* Vercel and Cloudflare buttons commented out for brevity ... */}
           </div>
         )}
       </div>
       <div className="flex border border-bolt-elements-borderColor rounded-md overflow-hidden">
         <Button
           active={showChat}
-          disabled={!canHideChat || isSmallViewport} // expand button is disabled on mobile as it's not needed
+          disabled={!canHideChat || isSmallViewport}
           onClick={() => {
             if (canHideChat) {
               chatStore.setKey('showChat', !showChat);

@@ -103,7 +103,9 @@ export async function action({ request, context }: ActionFunctionArgs) {
     });
 
     // 4. Create the path structure for the app: /[userId]/[appId]
-    const folderPrefix = `${userId}/${chatId}/`;
+    const shortUserId =
+      userId.length > 40 ? `${userId.substring(0, 20)}${userId.substring(userId.length - 20)}` : userId;
+    const folderPrefix = `${shortUserId}/${chatId}/`;
 
     // 5. Delete existing files in the path before uploading
     try {
@@ -147,7 +149,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
     };
 
     // Generate URL for the index.html in the app's folder
-    const siteUrl = `https://${bucketName}.s3.${region}.amazonaws.com/${folderPrefix}index.html`;
+    const siteUrl = `https://${shortUserId}-${chatId}.vibeox.ai`;
 
     const siteInfo: S3SiteInfo = {
       id: bucketName, // Use bucket name as ID
@@ -214,7 +216,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
     // 8. All uploads successful
     deploymentResult.state = 'ready';
-    deploymentResult.url = siteInfo.url;
+    deploymentResult.url = siteUrl;
 
     return json({
       success: true,
