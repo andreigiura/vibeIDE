@@ -72,7 +72,8 @@ export default async function handleRequest(
 
   responseHeaders.set('Cross-Origin-Embedder-Policy', 'require-corp');
   responseHeaders.set('Cross-Origin-Opener-Policy', 'same-origin');
-  responseHeaders.set('Cross-Origin-Resource-Policy', 'cross-origin');
+
+  // responseHeaders.set('Cross-Origin-Resource-Policy', 'cross-origin');
 
   return new Response(body, {
     headers: responseHeaders,
